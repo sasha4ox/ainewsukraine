@@ -22,11 +22,20 @@ export function splitTelegramText(text: string, limit = TELEGRAM_LIMIT): string[
 
 type TelegramSendResult = { ok: boolean; result?: { message_id: number }; description?: string };
 
+export function normalizeChannelId(raw: string): string {
+  const value = raw.trim();
+  const link = value.match(/(?:https?:\/\/)?t\.me\/([A-Za-z0-9_]+)/i);
+  if (link) return `@${link[1]}`;
+  if (value.startsWith("@") || /^-?\d+$/.test(value)) return value;
+  return value.startsWith("-") ? value : `@${value}`;
+}
+
 export async function publishDigest(digestId: string, body: string): Promise<number[]> {
   const env = loadEnv();
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHANNEL_ID) {
     throw new Error("TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID are required to publish");
   }
+  const chatId = normalizeChannelId(env.TELEGRAM_CHANNEL_ID);
 
   const chunks = splitTelegramText(body);
   const messageIds: number[] = [];
@@ -38,7 +47,7 @@ export async function publishDigest(digestId: string, body: string): Promise<num
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: env.TELEGRAM_CHANNEL_ID,
+            chat_id: chatId,
             text: chunk,
             disable_web_page_preview: true,
           }),
@@ -57,7 +66,7 @@ export async function publishDigest(digestId: string, body: string): Promise<num
   await prisma.telegramPost.create({
     data: {
       digestId,
-      chatId: env.TELEGRAM_CHANNEL_ID,
+      chatId,
       messageId: messageIds[0],
       status: "published",
       publishedAt: new Date(),

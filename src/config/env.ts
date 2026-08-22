@@ -32,6 +32,8 @@ const schema = z.object({
   MIN_CREDIBILITY_SCORE: z.coerce.number().int().min(0).max(100).default(70),
   MIN_IMPORTANCE_SCORE: z.coerce.number().int().min(0).max(100).default(0),
   MAX_PER_CATEGORY: z.coerce.number().int().min(1).max(10).default(3),
+  MAX_EVENTS_TO_SCORE: z.coerce.number().int().min(5).max(80).default(25),
+  MAX_AI_GROUPS: z.coerce.number().int().min(0).max(40).default(15),
   COPY_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.65),
   CLUSTER_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.28),
   CLUSTER_TIME_WINDOW_HOURS: z.coerce.number().min(1).max(72).default(18),

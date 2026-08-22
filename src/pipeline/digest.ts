@@ -1,7 +1,6 @@
 import { structuredComplete } from "../ai/client.ts";
-import { digestPrompt } from "../ai/prompts/digest.ts";
 import { summaryPrompt } from "../ai/prompts/summary.ts";
-import { digestSchema, jsonSchemas, summarySchema } from "../ai/schemas.ts";
+import { jsonSchemas, summarySchema } from "../ai/schemas.ts";
 import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { clampText } from "../normalize/text.ts";
@@ -117,7 +116,7 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
     try {
       const ai = await structuredComplete({
         name: "summary",
-        model: "smart",
+        model: "fast",
         system: summaryPrompt.system,
         user: summaryPrompt.user({
           title: event.title,
@@ -147,32 +146,6 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
       sourcesLine: names.slice(0, 4).join(" \u00B7 "),
       sourceUrls: [...new Set(urls)].slice(0, 3),
     });
-  }
-
-  try {
-    const polished = await structuredComplete({
-      name: "digest",
-      model: "smart",
-      system: digestPrompt.system,
-      user: digestPrompt.user({
-        items: written.map((item) => ({
-          rank: item.rank,
-          headline: item.headline,
-          summary: item.summary,
-        })),
-      }),
-      schema: jsonSchemas.digest.schema,
-      zodSchema: digestSchema,
-    });
-    for (const item of written) {
-      const match = polished.items.find((candidate) => candidate.rank === item.rank);
-      if (match) {
-        item.headline = clampText(match.headline, 140);
-        item.summary = clampText(match.summary, 520);
-      }
-    }
-  } catch (error) {
-    logger.warn({ err: error }, "digest polish failed; using per-item summaries");
   }
 
   return written;

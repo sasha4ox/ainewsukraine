@@ -2,7 +2,11 @@ name: Collect news
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    # Kyiv summer (UTC+3): 03:00, 09:00, 15:00, 18:30. Last run is 30 minutes before the 19:00 digest.
+    - cron: "0 0 * * *"
+    - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
+    - cron: "30 15 * * *"
   workflow_dispatch:
 
 jobs:

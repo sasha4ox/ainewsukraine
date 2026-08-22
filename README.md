@@ -11,7 +11,7 @@ No permanent server is required. GitHub Actions run the jobs. PostgreSQL lives o
 ## Architecture
 
 ```
-collect-news.yml  every 6 hours
+collect-news.yml  03:00, 09:00, 15:00, 18:30 Kyiv
   GramJS MTProto + RSS adapters
     -> raw_news / telegram_messages
 
@@ -162,7 +162,7 @@ Prompts live in `src/ai/prompts/`. Responses are Structured Outputs and re-valid
 
 Workflows:
 
-- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — every 6 hours
+- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:00, 09:00, 15:00, 18:30 Kyiv (last run 30 minutes before the digest)
 - [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 16:00 UTC (19:00 Kyiv in summer)
 
 Both support **Run workflow** from the Actions tab.

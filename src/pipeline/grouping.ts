@@ -1,9 +1,8 @@
 import type { Prisma, RawNews } from "@prisma/client";
 import { structuredComplete } from "../ai/client.ts";
-import { classificationPrompt } from "../ai/prompts/classification.ts";
-import { duplicateDetectionPrompt } from "../ai/prompts/duplicate-detection.ts";
 import { eventGroupingPrompt } from "../ai/prompts/event-grouping.ts";
-import { classificationSchema, duplicateDetectionSchema, eventGroupingSchema, jsonSchemas } from "../ai/schemas.ts";
+import { eventGroupingSchema, jsonSchemas } from "../ai/schemas.ts";
+import { loadEnv } from "../config/env.ts";
 import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { firstSentence } from "../normalize/text.ts";
@@ -45,6 +44,23 @@ export function isOfficialItem(item: RawNewsWithSource): boolean {
   return Boolean(item.source?.isOfficial || item.telegramSource?.officialSourceId);
 }
 
+export function isTelegramOnly(items: RawNewsWithSource[]): boolean {
+  return items.every((item) => item.sourceType === "telegram" || item.sourceType === "official_telegram");
+}
+
+export function cheapEventPriority(items: RawNewsWithSource[]): number {
+  const orgs = new Set(items.map(sourceOrganization));
+  const official = items.some(isOfficialItem);
+  const reliabilities = items.map(
+    (item) => item.source?.reliabilityScore ?? item.telegramSource?.reliabilityScore ?? 40,
+  );
+  const avg = reliabilities.reduce((sum, value) => sum + value, 0) / reliabilities.length;
+  let score = orgs.size * 16 + avg * 0.4 + items.length * 3;
+  if (official) score += 25;
+  if (isTelegramOnly(items) && !official) score -= 30;
+  return score;
+}
+
 export async function loadUngroupedNews(start: Date, end: Date): Promise<RawNewsWithSource[]> {
   const already = await prisma.eventSource.findMany({
     where: { rawNews: { publishedAt: { gte: start, lte: end } } },
@@ -74,17 +90,29 @@ export async function groupEvents(items: RawNewsWithSource[], digestDate: Date):
     })),
   );
 
-  logger.info({ clusters: clusters.length, items: items.length }, "pre-clustered raw news");
+  const ranked = [...clusters].sort((a, b) => b.itemIds.length - a.itemIds.length);
+  logger.info({ clusters: ranked.length, items: items.length }, "pre-clustered raw news");
   const eventIds: string[] = [];
+  let aiGroups = 0;
+  const env = loadEnv();
 
-  for (const cluster of clusters) {
+  for (const cluster of ranked) {
     const clusterItemsResolved = cluster.itemIds
       .map((id) => byId.get(id))
       .filter((item): item is RawNewsWithSource => Boolean(item));
     if (clusterItemsResolved.length === 0) continue;
+    if (
+      clusterItemsResolved.length === 1 &&
+      isTelegramOnly(clusterItemsResolved) &&
+      !isOfficialItem(clusterItemsResolved[0])
+    ) {
+      continue;
+    }
 
+    const useAi = clusterItemsResolved.length >= 3 && aiGroups < env.MAX_AI_GROUPS;
     try {
-      const created = await createEventsFromCluster(clusterItemsResolved, digestDate);
+      const created = await createEventsFromCluster(clusterItemsResolved, digestDate, useAi);
+      if (useAi) aiGroups += 1;
       eventIds.push(...created);
     } catch (error) {
       logger.error({ err: error, size: clusterItemsResolved.length }, "event grouping failed; using heuristic");
@@ -96,33 +124,13 @@ export async function groupEvents(items: RawNewsWithSource[], digestDate: Date):
   return eventIds;
 }
 
-async function createEventsFromCluster(items: RawNewsWithSource[], digestDate: Date): Promise<string[]> {
-  if (items.length === 1) {
+async function createEventsFromCluster(
+  items: RawNewsWithSource[],
+  digestDate: Date,
+  useAi: boolean,
+): Promise<string[]> {
+  if (items.length === 1 || !useAi) {
     return [await createHeuristicEvent(items, digestDate)];
-  }
-
-  if (items.length === 2) {
-    try {
-      const dup = await structuredComplete({
-        name: "duplicate_detection",
-        model: "fast",
-        system: duplicateDetectionPrompt.system,
-        user: duplicateDetectionPrompt.user(
-          { title: items[0].title, content: items[0].content ?? items[0].summary ?? "" },
-          { title: items[1].title, content: items[1].content ?? items[1].summary ?? "" },
-        ),
-        schema: jsonSchemas.duplicate_detection.schema,
-        zodSchema: duplicateDetectionSchema,
-      });
-      if (!dup.is_same_event) {
-        return [
-          await createHeuristicEvent([items[0]], digestDate),
-          await createHeuristicEvent([items[1]], digestDate),
-        ];
-      }
-    } catch {
-      // fall through to grouping
-    }
   }
 
   const payload = items.map((item, index) => ({
@@ -166,26 +174,8 @@ async function createEventsFromCluster(items: RawNewsWithSource[], digestDate: D
 
 async function createHeuristicEvent(items: RawNewsWithSource[], digestDate: Date): Promise<string> {
   const primary = items[0];
-  let category = "other";
-  let location: string | null = null;
-  try {
-    const classified = await structuredComplete({
-      name: "classification",
-      model: "fast",
-      system: classificationPrompt.system,
-      user: classificationPrompt.user({
-        title: primary.title,
-        content: primary.content ?? primary.summary ?? "",
-        sourceName: sourceDisplayName(primary),
-      }),
-      schema: jsonSchemas.classification.schema,
-      zodSchema: classificationSchema,
-    });
-    category = classified.category;
-    location = classified.location;
-  } catch {
-    // keep defaults
-  }
+  const category = "other";
+  const location: string | null = null;
   return persistEvent(
     items,
     digestDate,

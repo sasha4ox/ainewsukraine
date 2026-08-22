@@ -5,7 +5,7 @@ import { mapLimit } from "../lib/retry.ts";
 import { logger } from "../logger.ts";
 import { scoreCredibility } from "../pipeline/credibility.ts";
 import { defaultDigestTitle, defaultFooter, formatDigest, writeDigestItems } from "../pipeline/digest.ts";
-import { groupEvents, loadUngroupedNews } from "../pipeline/grouping.ts";
+import { cheapEventPriority, groupEvents, loadUngroupedNews, type RawNewsWithSource } from "../pipeline/grouping.ts";
 import { scoreImportance } from "../pipeline/importance.ts";
 import { analyzeIndependence } from "../pipeline/independence.ts";
 import { selectTopEvents, type EventForSelection } from "../pipeline/selection.ts";
@@ -44,10 +44,37 @@ async function main() {
 
   const windowEvents = await prisma.event.findMany({
     where: { digestDate },
-    select: { id: true },
+    include: {
+      sources: {
+        include: {
+          rawNews: {
+            include: {
+              source: { select: { name: true, organization: true, isOfficial: true, reliabilityScore: true } },
+              telegramSource: {
+                select: {
+                  name: true,
+                  organization: true,
+                  officialSourceId: true,
+                  reliabilityScore: true,
+                  sourceType: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
 
-  await mapLimit(windowEvents, 3, async (row) => {
+  const ranked = [...windowEvents].sort((a, b) => {
+    const aItems = a.sources.map((link) => link.rawNews as RawNewsWithSource);
+    const bItems = b.sources.map((link) => link.rawNews as RawNewsWithSource);
+    return cheapEventPriority(bItems) - cheapEventPriority(aItems);
+  });
+  const toScore = ranked.slice(0, env.MAX_EVENTS_TO_SCORE);
+  logger.info({ created: windowEvents.length, scoring: toScore.length }, "capped AI scoring shortlist");
+
+  await mapLimit(toScore, 3, async (row) => {
     const existing = await prisma.aiAnalysis.findFirst({
       where: { eventId: row.id, kind: "credibility" },
     });
