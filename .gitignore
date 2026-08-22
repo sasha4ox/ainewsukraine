@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.local
+*.session
+*.session-journal
+telegram.session
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+prisma/*.db
+prisma/*.db-journal

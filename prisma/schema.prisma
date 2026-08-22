@@ -1,0 +1,300 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SourceKind {
+  RSS
+  WEB
+}
+
+enum TelegramSourceKind {
+  public_channel
+  private_channel
+  official
+}
+
+enum VerificationStatus {
+  confirmed
+  mostly_confirmed
+  unconfirmed
+  contradicted
+}
+
+enum EventSourceRole {
+  primary
+  independent
+  copy
+  official
+  citation
+}
+
+enum SourceRelationType {
+  copy
+  citation
+}
+
+enum DigestStatus {
+  pending
+  generated
+  published
+  failed
+}
+
+model Source {
+  id               String     @id @default(cuid())
+  name             String
+  type             SourceKind @default(RSS)
+  url              String
+  country          String?
+  language         String?
+  organization     String?
+  isOfficial       Boolean    @default(false)
+  reliabilityScore Int        @default(50) @map("reliability_score")
+  enabled          Boolean    @default(true)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  rawNews          RawNews[]
+
+  @@unique([url])
+  @@index([enabled])
+  @@map("sources")
+}
+
+model TelegramSource {
+  id                     String             @id @default(cuid())
+  name                   String
+  username               String?
+  inviteLink             String?            @map("invite_link")
+  sourceType             TelegramSourceKind @map("source_type")
+  organization           String?
+  officialSourceId       String?            @map("official_source_id")
+  officialSource         OfficialSource?    @relation(fields: [officialSourceId], references: [id])
+  reliabilityScore       Int                @default(40) @map("reliability_score")
+  enabled                Boolean            @default(true)
+  lastProcessedMessageId Int                @default(0) @map("last_processed_message_id")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  messages               TelegramMessage[]
+  rawNews                RawNews[]
+
+  @@index([enabled])
+  @@index([username])
+  @@map("telegram_sources")
+}
+
+model OfficialSource {
+  id               String           @id @default(cuid())
+  organization     String
+  name             String
+  websiteUrl       String?          @map("website_url")
+  telegramUrl      String?          @map("telegram_url")
+  facebookUrl      String?          @map("facebook_url")
+  xUrl             String?          @map("x_url")
+  country          String           @default("UA")
+  reliabilityScore Int              @default(90) @map("reliability_score")
+  enabled          Boolean          @default(true)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  telegramSources  TelegramSource[]
+
+  @@map("official_sources")
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  slug      String          @unique
+  nameUk    String          @map("name_uk")
+  nameEn    String          @map("name_en")
+  createdAt DateTime        @default(now()) @map("created_at")
+  events    EventCategory[]
+
+  @@map("categories")
+}
+
+model RawNews {
+  id               String          @id @default(cuid())
+  title            String
+  summary          String?
+  content          String?
+  sourceId         String?         @map("source_id")
+  source           Source?         @relation(fields: [sourceId], references: [id])
+  telegramSourceId String?         @map("telegram_source_id")
+  telegramSource   TelegramSource? @relation(fields: [telegramSourceId], references: [id])
+  sourceType       String          @map("source_type")
+  url              String?
+  publishedAt      DateTime        @map("published_at")
+  language         String?
+  externalId       String          @map("external_id")
+  contentHash      String          @unique @map("content_hash")
+  bodyHash         String          @map("body_hash")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  telegramMessage     TelegramMessage?
+  eventSources        EventSource[]
+  relationsFrom       SourceRelationship[] @relation("RelFrom")
+  relationsTo         SourceRelationship[] @relation("RelTo")
+
+  @@unique([sourceId, externalId])
+  @@unique([telegramSourceId, externalId])
+  @@index([url])
+  @@index([contentHash])
+  @@index([bodyHash])
+  @@index([publishedAt])
+  @@index([createdAt])
+  @@map("raw_news")
+}
+
+model TelegramMessage {
+  id               String         @id @default(cuid())
+  telegramSourceId String         @map("telegram_source_id")
+  telegramSource   TelegramSource @relation(fields: [telegramSourceId], references: [id])
+  messageId        Int            @map("message_id")
+  text             String?
+  date             DateTime
+  mediaType        String?        @map("media_type")
+  mediaMetadata    Json?          @map("media_metadata")
+  rawNewsId        String?        @unique @map("raw_news_id")
+  rawNews          RawNews?       @relation(fields: [rawNewsId], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  @@unique([telegramSourceId, messageId])
+  @@index([telegramSourceId, messageId])
+  @@index([date])
+  @@map("telegram_messages")
+}
+
+model Event {
+  id                 String             @id @default(cuid())
+  title              String
+  normalizedSummary  String?            @map("normalized_summary")
+  eventTime          DateTime           @map("event_time")
+  location           String?
+  importanceScore    Int                @default(0) @map("importance_score")
+  credibilityScore   Int                @default(0) @map("credibility_score")
+  verificationStatus VerificationStatus @default(unconfirmed) @map("verification_status")
+  primarySourceUrl   String?            @map("primary_source_url")
+  digestDate         DateTime           @map("digest_date") @db.Date
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  sources     EventSource[]
+  categories  EventCategory[]
+  analyses    AiAnalysis[]
+  digestItems DigestItem[]
+
+  @@index([eventTime])
+  @@index([createdAt])
+  @@index([digestDate])
+  @@index([credibilityScore])
+  @@index([importanceScore])
+  @@map("events")
+}
+
+model EventCategory {
+  eventId    String   @map("event_id")
+  categoryId String   @map("category_id")
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([eventId, categoryId])
+  @@map("event_categories")
+}
+
+model EventSource {
+  id        String          @id @default(cuid())
+  eventId   String          @map("event_id")
+  event     Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rawNewsId String          @map("raw_news_id")
+  rawNews   RawNews         @relation(fields: [rawNewsId], references: [id])
+  role      EventSourceRole @default(independent)
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@unique([eventId, rawNewsId])
+  @@index([rawNewsId])
+  @@map("event_sources")
+}
+
+model SourceRelationship {
+  id         String             @id @default(cuid())
+  fromNewsId String             @map("from_news_id")
+  fromNews   RawNews            @relation("RelFrom", fields: [fromNewsId], references: [id], onDelete: Cascade)
+  toNewsId   String             @map("to_news_id")
+  toNews     RawNews            @relation("RelTo", fields: [toNewsId], references: [id], onDelete: Cascade)
+  type       SourceRelationType
+  similarity Float
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  @@unique([fromNewsId, toNewsId, type])
+  @@index([toNewsId])
+  @@map("source_relationships")
+}
+
+model AiAnalysis {
+  id         String   @id @default(cuid())
+  eventId    String   @map("event_id")
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  kind       String
+  model      String
+  promptName String   @map("prompt_name")
+  input      Json
+  output     Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([eventId, kind])
+  @@map("ai_analyses")
+}
+
+model DailyDigest {
+  id         String       @id @default(cuid())
+  digestDate DateTime     @map("digest_date") @db.Date
+  digestType String       @default("daily_top") @map("digest_type")
+  status     DigestStatus @default(pending)
+  timezone   String
+  headline   String?
+  body       String?
+  itemCount  Int          @default(0) @map("item_count")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  items DigestItem[]
+  posts TelegramPost[]
+
+  @@unique([digestDate, digestType])
+  @@map("daily_digests")
+}
+
+model DigestItem {
+  id        String      @id @default(cuid())
+  digestId  String      @map("digest_id")
+  digest    DailyDigest @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  eventId   String      @map("event_id")
+  event     Event       @relation(fields: [eventId], references: [id])
+  rank      Int
+  headline  String
+  summary   String
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@unique([digestId, rank])
+  @@unique([digestId, eventId])
+  @@map("digest_items")
+}
+
+model TelegramPost {
+  id          String      @id @default(cuid())
+  digestId    String      @map("digest_id")
+  digest      DailyDigest @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  chatId      String      @map("chat_id")
+  messageId   Int?        @map("message_id")
+  status      String
+  error       String?
+  publishedAt DateTime?   @map("published_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([digestId])
+  @@map("telegram_posts")
+}

@@ -1,0 +1,39 @@
+name: Daily digest
+
+on:
+  schedule:
+    # 16:00 UTC ~ 19:00 Europe/Kyiv in summer (18:00 Kyiv in winter).
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - run: npm run digest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL_FAST: ${{ vars.OPENAI_MODEL_FAST || 'gpt-4o-mini' }}
+          OPENAI_MODEL_SMART: ${{ vars.OPENAI_MODEL_SMART || 'gpt-4o' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TIMEZONE: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}
+          DIGEST_TIME: ${{ vars.DIGEST_TIME || '19:00' }}
+          DIGEST_NEWS_COUNT: ${{ vars.DIGEST_NEWS_COUNT || '10' }}
+          MIN_CREDIBILITY_SCORE: ${{ vars.MIN_CREDIBILITY_SCORE || '70' }}
+          MIN_IMPORTANCE_SCORE: ${{ vars.MIN_IMPORTANCE_SCORE || '0' }}
+          MAX_PER_CATEGORY: ${{ vars.MAX_PER_CATEGORY || '3' }}
+          LOG_LEVEL: info
+          TZ: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}
