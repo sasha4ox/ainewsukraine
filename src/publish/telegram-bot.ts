@@ -49,6 +49,7 @@ export async function publishDigest(digestId: string, body: string): Promise<num
           body: JSON.stringify({
             chat_id: chatId,
             text: chunk,
+            parse_mode: "HTML",
             disable_web_page_preview: true,
           }),
         });

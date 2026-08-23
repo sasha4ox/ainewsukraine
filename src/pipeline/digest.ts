@@ -4,7 +4,8 @@ import { jsonSchemas, summarySchema } from "../ai/schemas.ts";
 import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { clampText } from "../normalize/text.ts";
-import { sourceDisplayName, type RawNewsWithSource } from "./grouping.ts";
+import { type RawNewsWithSource } from "./grouping.ts";
+import { isVagueCopy, uniqueSources } from "./quality.ts";
 import type { EventForSelection } from "./selection.ts";
 
 const CIRCLED = [
@@ -17,7 +18,7 @@ const CIRCLED = [
   "7\uFE0F\u20E3",
   "8\uFE0F\u20E3",
   "9\uFE0F\u20E3",
-  "10\uFE0F\u20E3",
+  "\u{1F51F}",
 ];
 
 const LABEL_CREDIBILITY = "\u0414\u043e\u0441\u0442\u043e\u0432\u0456\u0440\u043d\u0456\u0441\u0442\u044c";
@@ -36,7 +37,24 @@ export type WrittenItem = {
   importance: number;
   sourcesLine: string;
   sourceUrls: string[];
+  sources: Array<{ name: string; url: string | null }>;
 };
+
+export function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function sourceLinksHtml(sources: Array<{ name: string; url: string | null }>): string {
+  return sources
+    .slice(0, 4)
+    .map((source) => {
+      const name = escapeHtml(source.name);
+      if (!source.url) return `<b>${name}</b>`;
+      const href = escapeHtml(source.url);
+      return `<a href="${href}">${name}</a>`;
+    })
+    .join(" \u00B7 ");
+}
 
 function credibilityDot(score: number): string {
   if (score >= 85) return "\u{1F7E2}";
@@ -47,39 +65,25 @@ function credibilityDot(score: number): string {
 export function formatDigest(title: string, items: WrittenItem[], footer: string): string {
   const blocks = items.map((item, index) => {
     const mark = CIRCLED[index] ?? `${item.rank}.`;
-    const links = item.sourceUrls
-      .slice(0, 3)
-      .map((url) => url)
-      .join("\n");
     return [
-      `${mark} ${item.headline}`,
+      `<b>${mark} ${escapeHtml(item.headline)}</b>`,
       "",
-      item.summary,
+      escapeHtml(item.summary),
       "",
       `${credibilityDot(item.credibility)} ${LABEL_CREDIBILITY}: ${item.credibility}%`,
       `\u{1F525} ${LABEL_IMPORTANCE}: ${item.importance}/100`,
       "",
-      `${LABEL_SOURCES}: ${item.sourcesLine}`,
-      links,
+      `${LABEL_SOURCES}: ${sourceLinksHtml(item.sources)}`,
     ].join("\n");
   });
 
-  return [`\u{1F1FA}\u{1F1E6} ${title}`, "", ...blocks, "", footer].join("\n").trim();
-}
-
-function uniqueSourceNames(items: RawNewsWithSource[]): string[] {
-  const names: string[] = [];
-  for (const item of items) {
-    const name = sourceDisplayName(item);
-    if (!names.includes(name)) names.push(name);
-  }
-  return names;
+  return [`\u{1F1FA}\u{1F1E6} <b>${escapeHtml(title)}</b>`, "", blocks.join("\n\n\u2014\u2014\u2014\u2014\n\n"), "", escapeHtml(footer)].join("\n").trim();
 }
 
 export async function writeDigestItems(events: EventForSelection[]): Promise<WrittenItem[]> {
   const written: WrittenItem[] = [];
 
-  for (const [index, event] of events.entries()) {
+  for (const event of events) {
     const full = await prisma.event.findUniqueOrThrow({
       where: { id: event.id },
       include: {
@@ -106,9 +110,15 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
     });
 
     const rawItems = full.sources.map((link) => link.rawNews as RawNewsWithSource);
-    const names = uniqueSourceNames(rawItems);
-    const urls = rawItems.map((item) => item.url).filter((url): url is string => Boolean(url));
+    const sources = uniqueSources(rawItems);
+    const names = sources.map((source) => source.name);
+    const urls = sources.map((source) => source.url).filter((url): url is string => Boolean(url));
     const credibilityReason = (full.analyses[0]?.output as { reason?: string } | null)?.reason;
+    const sourceSnippets = rawItems.slice(0, 5).map((item) => ({
+      source: item.source?.name ?? item.telegramSource?.name,
+      title: item.title,
+      text: (item.content ?? item.summary ?? "").slice(0, 400),
+    }));
 
     let headline = event.title;
     let summary = event.normalizedSummary ?? event.title;
@@ -121,11 +131,11 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
         user: summaryPrompt.user({
           title: event.title,
           facts: event.normalizedSummary,
+          source_snippets: sourceSnippets,
           location: event.location,
           verification_status: event.verificationStatus,
           credibility_reason: credibilityReason,
           source_names: names,
-          allowed_urls: urls,
         }),
         schema: jsonSchemas.summary.schema,
         zodSchema: summarySchema,
@@ -136,15 +146,21 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
       logger.warn({ err: error, eventId: event.id }, "summary AI failed; using stored text");
     }
 
+    if (headline.startsWith("SKIP") || isVagueCopy(headline, summary)) {
+      logger.info({ eventId: event.id, headline }, "skipped vague or empty digest item");
+      continue;
+    }
+
     written.push({
       eventId: event.id,
-      rank: index + 1,
+      rank: written.length + 1,
       headline,
       summary,
       credibility: event.credibilityScore,
       importance: event.importanceScore,
       sourcesLine: names.slice(0, 4).join(" \u00B7 "),
-      sourceUrls: [...new Set(urls)].slice(0, 3),
+      sourceUrls: urls.slice(0, 3),
+      sources,
     });
   }
 

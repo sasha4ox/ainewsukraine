@@ -1,19 +1,24 @@
 import type { Event, EventCategory, Category } from "@prisma/client";
 import { loadEnv } from "../config/env.ts";
 import { logger } from "../logger.ts";
+import type { RawNewsWithSource } from "./grouping.ts";
+import { isOfficialNoise, tooSimilar } from "./quality.ts";
 
 export type EventForSelection = Event & {
   categories: Array<EventCategory & { category: Category }>;
+  sources?: Array<{ rawNews: RawNewsWithSource }>;
 };
 
 export function selectTopEvents(events: EventForSelection[]): EventForSelection[] {
   const env = loadEnv();
-  const eligible = events.filter(
-    (event) =>
-      event.credibilityScore >= env.MIN_CREDIBILITY_SCORE &&
-      event.importanceScore >= env.MIN_IMPORTANCE_SCORE &&
-      event.verificationStatus !== "contradicted",
-  );
+  const eligible = events.filter((event) => {
+    if (event.credibilityScore < env.MIN_CREDIBILITY_SCORE) return false;
+    if (event.importanceScore < env.MIN_IMPORTANCE_SCORE) return false;
+    if (event.verificationStatus === "contradicted") return false;
+    const items = event.sources?.map((link) => link.rawNews) ?? [];
+    if (items.length > 0 && isOfficialNoise(event.title, event.normalizedSummary ?? "", items)) return false;
+    return true;
+  });
 
   const ranked = [...eligible].sort((a, b) => {
     if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
@@ -30,6 +35,8 @@ export function selectTopEvents(events: EventForSelection[]): EventForSelection[
     if (used >= env.MAX_PER_CATEGORY && ranked.length - selected.length > 1) {
       continue;
     }
+    const similar = selected.some((other) => tooSimilar(`${other.title} ${other.normalizedSummary ?? ""}`, `${event.title} ${event.normalizedSummary ?? ""}`));
+    if (similar) continue;
     selected.push(event);
     perCategory.set(slug, used + 1);
   }

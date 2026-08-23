@@ -90,7 +90,27 @@ async function main() {
 
   const scored = (await prisma.event.findMany({
     where: { digestDate },
-    include: { categories: { include: { category: true } } },
+    include: {
+      categories: { include: { category: true } },
+      sources: {
+        include: {
+          rawNews: {
+            include: {
+              source: { select: { name: true, organization: true, isOfficial: true, reliabilityScore: true } },
+              telegramSource: {
+                select: {
+                  name: true,
+                  organization: true,
+                  officialSourceId: true,
+                  reliabilityScore: true,
+                  sourceType: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     orderBy: [{ importanceScore: "desc" }, { credibilityScore: "desc" }],
   })) as EventForSelection[];
 
