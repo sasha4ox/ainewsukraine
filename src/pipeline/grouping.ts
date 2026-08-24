@@ -55,8 +55,11 @@ export function cheapEventPriority(items: RawNewsWithSource[]): number {
     (item) => item.source?.reliabilityScore ?? item.telegramSource?.reliabilityScore ?? 40,
   );
   const avg = reliabilities.reduce((sum, value) => sum + value, 0) / reliabilities.length;
+  const independent = items.some((item) => Boolean(item.source) && !item.source?.isOfficial);
   let score = orgs.size * 16 + avg * 0.4 + items.length * 3;
-  if (official) score += 25;
+  if (official && independent) score += 25;
+  else if (independent) score += 18;
+  else if (official) score += 4;
   if (isTelegramOnly(items) && !official) score -= 30;
   return score;
 }

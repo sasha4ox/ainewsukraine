@@ -5,7 +5,8 @@ import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { clampText } from "../normalize/text.ts";
 import { type RawNewsWithSource } from "./grouping.ts";
-import { isVagueCopy, uniqueSources } from "./quality.ts";
+import { loadEnv } from "../config/env.ts";
+import { isOfficialNoise, isVagueCopy, tooSimilar, uniqueSources } from "./quality.ts";
 import type { EventForSelection } from "./selection.ts";
 
 const CIRCLED = [
@@ -81,9 +82,11 @@ export function formatDigest(title: string, items: WrittenItem[], footer: string
 }
 
 export async function writeDigestItems(events: EventForSelection[]): Promise<WrittenItem[]> {
+  const maxItems = loadEnv().DIGEST_NEWS_COUNT;
   const written: WrittenItem[] = [];
 
   for (const event of events) {
+    if (written.length >= maxItems) break;
     const full = await prisma.event.findUniqueOrThrow({
       where: { id: event.id },
       include: {
@@ -146,8 +149,17 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
       logger.warn({ err: error, eventId: event.id }, "summary AI failed; using stored text");
     }
 
-    if (headline.startsWith("SKIP") || isVagueCopy(headline, summary)) {
+    if (
+      headline.startsWith("SKIP") ||
+      isVagueCopy(headline, summary) ||
+      isOfficialNoise(headline, summary, rawItems)
+    ) {
       logger.info({ eventId: event.id, headline }, "skipped vague or empty digest item");
+      continue;
+    }
+    const blob = `${headline} ${summary}`;
+    if (written.some((item) => tooSimilar(`${item.headline} ${item.summary}`, blob))) {
+      logger.info({ eventId: event.id, headline }, "skipped similar digest item");
       continue;
     }
 

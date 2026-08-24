@@ -2,50 +2,60 @@ import type { Event, EventCategory, Category } from "@prisma/client";
 import { loadEnv } from "../config/env.ts";
 import { logger } from "../logger.ts";
 import type { RawNewsWithSource } from "./grouping.ts";
-import { isOfficialNoise, tooSimilar } from "./quality.ts";
+import { hasIndependentMedia, isOfficialNoise, noiseBucket, tooSimilar } from "./quality.ts";
 
 export type EventForSelection = Event & {
   categories: Array<EventCategory & { category: Category }>;
   sources?: Array<{ rawNews: RawNewsWithSource }>;
 };
 
+function eventItems(event: EventForSelection): RawNewsWithSource[] {
+  return event.sources?.map((link) => link.rawNews) ?? [];
+}
+
+function mediaBoost(event: EventForSelection): number {
+  return hasIndependentMedia(eventItems(event)) ? 1 : 0;
+}
+
 export function selectTopEvents(events: EventForSelection[]): EventForSelection[] {
   const env = loadEnv();
+  const poolLimit = Math.max(env.DIGEST_NEWS_COUNT * 3, env.DIGEST_NEWS_COUNT);
+  const categoryCap = env.MAX_PER_CATEGORY * 2;
+
   const eligible = events.filter((event) => {
     if (event.credibilityScore < env.MIN_CREDIBILITY_SCORE) return false;
     if (event.importanceScore < env.MIN_IMPORTANCE_SCORE) return false;
     if (event.verificationStatus === "contradicted") return false;
-    const items = event.sources?.map((link) => link.rawNews) ?? [];
-    if (items.length > 0 && isOfficialNoise(event.title, event.normalizedSummary ?? "", items)) return false;
+    const items = eventItems(event);
+    if (isOfficialNoise(event.title, event.normalizedSummary ?? "", items)) return false;
     return true;
   });
 
   const ranked = [...eligible].sort((a, b) => {
+    if (mediaBoost(b) !== mediaBoost(a)) return mediaBoost(b) - mediaBoost(a);
     if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
     return b.credibilityScore - a.credibilityScore;
   });
 
   const selected: EventForSelection[] = [];
   const perCategory = new Map<string, number>();
+  const buckets = new Set<string>();
 
   for (const event of ranked) {
-    if (selected.length >= env.DIGEST_NEWS_COUNT) break;
+    if (selected.length >= poolLimit) break;
     const slug = event.categories[0]?.category.slug ?? "other";
     const used = perCategory.get(slug) ?? 0;
-    if (used >= env.MAX_PER_CATEGORY && ranked.length - selected.length > 1) {
+    if (used >= categoryCap && ranked.length - selected.length > 1) {
       continue;
     }
-    const similar = selected.some((other) => tooSimilar(`${other.title} ${other.normalizedSummary ?? ""}`, `${event.title} ${event.normalizedSummary ?? ""}`));
+    const blob = `${event.title} ${event.normalizedSummary ?? ""}`;
+    const bucket = noiseBucket(event.title, event.normalizedSummary ?? "");
+    if (bucket && buckets.has(bucket)) continue;
+    const similar = selected.some((other) => tooSimilar(`${other.title} ${other.normalizedSummary ?? ""}`, blob));
     if (similar) continue;
     selected.push(event);
     perCategory.set(slug, used + 1);
-  }
-
-  if (selected.length < env.DIGEST_NEWS_COUNT) {
-    for (const event of ranked) {
-      if (selected.length >= env.DIGEST_NEWS_COUNT) break;
-      if (!selected.includes(event)) selected.push(event);
-    }
+    if (bucket) buckets.add(bucket);
   }
 
   logger.info(

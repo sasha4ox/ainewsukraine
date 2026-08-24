@@ -2,24 +2,33 @@ import { jaccard, shingles } from "../normalize/text.ts";
 import { isOfficialItem, sourceDisplayName, type RawNewsWithSource } from "./grouping.ts";
 
 const EMPTY_STORY =
-  /\u043e\u0444\u0456\u0446\u0456\u0439\u043d(\u0443|\u0430) \u0437\u0430\u044f\u0432|\u0437\u0440\u043e\u0431\u0438\u0432 \u0437\u0430\u044f\u0432|\u0437\u0440\u043e\u0431\u0438\u043b\u0430 \u0437\u0430\u044f\u0432|official statement|\u043f\u0440\u0438\u0432\u0456\u0442\u0430\u0432|\u043f\u0440\u0438\u0432\u0456\u0442\u0430\u0454|\u0434\u0435\u043d\u044c \u0434\u0435\u0440\u0436\u0430\u0432\u043d\u043e\u0433|\u043d\u043e\u0432\u0456 \u0434\u0430\u043d\u0456 \u043f\u0440\u043e \u043d\u0430\u0434\u0437\u0432\u0438\u0447\u0430\u0439|\u0434\u0435\u0442\u0430\u043b\u0456 \u0437\u0430\u044f\u0432\u0438 \u043d\u0430\u0440\u0430\u0437\u0456/i;
+  /офіційн(у|а|ої)?\s+заяв|зробив(а)?\s+заяв|зробила\s+заяв|виступив\s+з.{0,20}заяв|заяв[аи]\s+президента|кільк(а|ома)\s+заяв|додатков(і|их)\s+заяв|заяви\s+охоплюють|official statement|привітав|привітає|вітання|день державного|нові дані про надзвичай|надзвичайні ситуац|звіт про надзвичай|деталі заяви наразі|конкретні деталі не|деталі не розкрит|деталі не надан|підтверджен[аоі]\s+через офіційн|офіційні канали/i;
 
-const CONCRETE_FACT =
-  /\d+|\u0443\u0434\u0430\u0440|\u0430\u0442\u0430\u043a|\u0437\u0430\u0433\u0438\u0431|\u043f\u043e\u0440\u0430\u043d\u0435\u043d|\u0440\u0430\u043a\u0435\u0442|\u0434\u0440\u043e\u043d|\u0437\u0430\u043a\u043e\u043d|\u0441\u0430\u043d\u043a\u0446|\u043f\u0435\u0440\u0435\u043c\u043e\u0432\u0438\u043d|\u0443\u0433\u043e\u0434/;
+const CEREMONY =
+  /нагород|річниц|з нагоди|бойов(і|их|ого)\s+прапор|стрічк(и|у)\s+почесн|відновлення незалежн/i;
+
+const CONSEQUENCE = /загиб|поранен|травмова|пожеж|вибух|зруйнов|вбит|загинул/i;
+
+const NAMED_TARGET =
+  /комбінат|азс|автозаправ|трц|лікарн|школ|завод|склад|підстанц|електростанц|аеродром/i;
+
+const STRIKE = /удар|атак|обстріл|ракет|дрон|\bкаб\b/i;
+
+const POLICY = /закон|санкц|перемовин|угод/i;
 
 const SOURCE_UK: Record<string, string> = {
-  "President of Ukraine": "\u041f\u0440\u0435\u0437\u0438\u0434\u0435\u043d\u0442 \u0423\u043a\u0440\u0430\u0457\u043d\u0438",
-  DSNS: "\u0414\u0421\u041d\u0421",
-  "Air Force of Ukraine": "\u041f\u043e\u0432\u0456\u0442\u0440\u044f\u043d\u0456 \u0441\u0438\u043b\u0438 \u0417\u0421\u0423",
-  "General Staff ZSU": "\u0413\u0435\u043d\u0448\u0442\u0430\u0431 \u0417\u0421\u0423",
-  "Cabinet of Ministers": "\u041a\u0430\u0431\u043c\u0456\u043d",
-  "Ukrainska Pravda": "\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430 \u043f\u0440\u0430\u0432\u0434\u0430",
-  "European Pravda": "\u0404\u0432\u0440\u043e\u043f\u0435\u0439\u0441\u044c\u043a\u0430 \u043f\u0440\u0430\u0432\u0434\u0430",
-  "Radio Svoboda": "\u0420\u0430\u0434\u0456\u043e \u0421\u0432\u043e\u0431\u043e\u0434\u0430",
-  "Hromadske Radio": "\u0413\u0440\u043e\u043c\u0430\u0434\u0441\u044c\u043a\u0435 \u0440\u0430\u0434\u0456\u043e",
-  Suspilne: "\u0421\u0443\u0441\u043f\u0456\u043b\u044c\u043d\u0435",
-  Ukrinform: "\u0423\u043a\u0440\u0456\u043d\u0444\u043e\u0440\u043c",
-  Blyskavka: "\u0411\u043b\u0438\u0441\u043a\u0430\u0432\u043a\u0430",
+  "President of Ukraine": "Президент України",
+  DSNS: "ДСНС",
+  "Air Force of Ukraine": "Повітряні сили ЗСУ",
+  "General Staff ZSU": "Генштаб ЗСУ",
+  "Cabinet of Ministers": "Кабмін",
+  "Ukrainska Pravda": "Українська правда",
+  "European Pravda": "Європейська правда",
+  "Radio Svoboda": "Радіо Свобода",
+  "Hromadske Radio": "Громадське радіо",
+  Suspilne: "Суспільне",
+  Ukrinform: "Укрінформ",
+  Blyskavka: "Блискавка",
 };
 
 export function localizeSourceName(name: string): string {
@@ -30,18 +39,46 @@ export function hasIndependentMedia(items: RawNewsWithSource[]): boolean {
   return items.some((item) => Boolean(item.source) && !item.source?.isOfficial);
 }
 
+export function isCeremony(text: string): boolean {
+  return CEREMONY.test(text);
+}
+
+export function isEmptyOfficialCopy(text: string): boolean {
+  return EMPTY_STORY.test(text);
+}
+
+export function isConcreteStory(text: string): boolean {
+  if (CONSEQUENCE.test(text)) return true;
+  if (NAMED_TARGET.test(text) && STRIKE.test(text)) return true;
+  if (POLICY.test(text) && !isEmptyOfficialCopy(text)) return true;
+  return false;
+}
+
+export function noiseBucket(title: string, summary: string): string | null {
+  const text = `${title} ${summary}`;
+  if (isCeremony(text)) return "ceremony";
+  if (!isEmptyOfficialCopy(text)) return null;
+  if (/президент|зеленськ/i.test(text)) return "president-empty";
+  if (/дснс|надзвичай/i.test(text)) return "dsns-empty";
+  if (/повітряні сили|генштаб/i.test(text)) return "mod-empty";
+  return "official-empty";
+}
+
 export function isOfficialNoise(title: string, summary: string, items: RawNewsWithSource[]): boolean {
   const text = `${title} ${summary}`;
-  if (EMPTY_STORY.test(text) && !CONCRETE_FACT.test(text)) return true;
-  if (!hasIndependentMedia(items) && EMPTY_STORY.test(text)) return true;
-  if (!hasIndependentMedia(items) && items.every(isOfficialItem) && !CONCRETE_FACT.test(text)) return true;
+  if (isCeremony(text)) return true;
+  if (isEmptyOfficialCopy(text) && !isConcreteStory(text)) return true;
+  const officialOnly = items.length > 0 && !hasIndependentMedia(items);
+  if (officialOnly && !isConcreteStory(text)) return true;
   return false;
 }
 
 export function isVagueCopy(headline: string, summary: string): boolean {
   const text = `${headline} ${summary}`;
-  if (summary.trim().length < 80) return true;
-  if (EMPTY_STORY.test(text) && !CONCRETE_FACT.test(text)) return true;
+  if (headline.startsWith("SKIP")) return true;
+  if (isCeremony(text)) return true;
+  if (isEmptyOfficialCopy(text) && !isConcreteStory(text)) return true;
+  if (summary.trim().length < 80 && !isConcreteStory(text)) return true;
   return false;
 }
 
