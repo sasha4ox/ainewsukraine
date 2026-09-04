@@ -4,7 +4,7 @@ import { credibilityPrompt } from "../ai/prompts/credibility.ts";
 import { credibilitySchema, jsonSchemas } from "../ai/schemas.ts";
 import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
-import { sourceDisplayName, type RawNewsWithSource } from "./grouping.ts";
+import { isOfficialItem, sourceDisplayName, sourceOrganization, type RawNewsWithSource } from "./grouping.ts";
 import type { IndependenceResult } from "./independence.ts";
 
 export type CredibilityResult = {
@@ -19,32 +19,34 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function independentMediaOrgs(items: RawNewsWithSource[], independence: IndependenceResult): string[] {
+  const officialOrgs = new Set(items.filter(isOfficialItem).map(sourceOrganization));
+  return independence.independentOrgs.filter((org) => !officialOrgs.has(org));
+}
+
 export function computeCredibilityBase(
   items: RawNewsWithSource[],
   independence: IndependenceResult,
 ): number {
-  let score = 20;
+  let score = 28;
+  const mediaOrgs = independentMediaOrgs(items, independence);
 
-  const reliabilities = independence.independentOrgs.map((org) => {
-    const item = items.find((candidate) => {
-      const name = candidate.source?.organization ?? candidate.telegramSource?.organization ?? sourceDisplayName(candidate);
-      return name === org;
-    });
-    return item?.source?.reliabilityScore ?? item?.telegramSource?.reliabilityScore ?? 40;
+  const reliabilities = mediaOrgs.map((org) => {
+    const found = items.find((candidate) => sourceOrganization(candidate) === org);
+    return found?.source?.reliabilityScore ?? found?.telegramSource?.reliabilityScore ?? 40;
   });
 
   const avgReliability =
     reliabilities.length === 0 ? 40 : reliabilities.reduce((sum, value) => sum + value, 0) / reliabilities.length;
 
-  score += Math.min(40, independence.independentOrgs.length * 12);
+  score += Math.min(48, mediaOrgs.length * 16);
   score += Math.round((avgReliability - 50) * 0.35);
 
-  if (independence.officialConfirmation) score += 22;
+  if (independence.officialConfirmation) score += 12;
   if (independence.primaryUrl) score += 4;
   if (independence.telegramOnly) score -= 18;
   if (independence.anonymous) score -= 10;
   if (independence.contradictions.length > 0) score -= 25;
-  if (independence.independentOrgs.length <= 1 && !independence.officialConfirmation) score -= 8;
 
   return clamp(score);
 }

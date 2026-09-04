@@ -11,7 +11,7 @@ No permanent server is required. GitHub Actions run the jobs. PostgreSQL lives o
 ## Architecture
 
 ```
-collect-news.yml  03:00, 09:00, 15:00, 18:30 Kyiv
+collect-news.yml  03:13, 09:13, 15:13, 18:47 Kyiv
   GramJS MTProto + RSS adapters
     -> raw_news / telegram_messages
 
@@ -154,16 +154,17 @@ Prompts live in `src/ai/prompts/`. Responses are Structured Outputs and re-valid
 - `TIMEZONE` default `Europe/Kyiv`
 - `DIGEST_TIME` default `19:00`
 - `DIGEST_NEWS_COUNT` default `10`
-- `MIN_CREDIBILITY_SCORE` default `70`
+- `MIN_CREDIBILITY_SCORE` default `60`
 - `MIN_IMPORTANCE_SCORE` default `0`
 - `MAX_PER_CATEGORY` default `3`
+- `MAX_EVENTS_TO_SCORE` default `40`
 - `TELEGRAM_WEB_FALLBACK` default unset/false
 - `OPENAI_MODEL_FAST` / `OPENAI_MODEL_SMART`
 
 Workflows:
 
-- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:00, 09:00, 15:00, 18:30 Kyiv (last run 30 minutes before the digest)
-- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 16:00 UTC (19:00 Kyiv in summer)
+- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:13, 09:13, 15:13, 18:47 Kyiv (last run ~30 minutes before the digest)
+- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 16:17 UTC (19:17 Kyiv in summer; odd minute to dodge GitHub's :00 queue)
 
 Both support **Run workflow** from the Actions tab.
 
@@ -204,9 +205,10 @@ All of these are environment variables / GitHub variables:
 | `TIMEZONE` | Calendar timezone, default `Europe/Kyiv` |
 | `DIGEST_TIME` | Documented target hour; GitHub cron is UTC |
 | `DIGEST_NEWS_COUNT` | Maximum stories, default 10 |
-| `MIN_CREDIBILITY_SCORE` | Default 70. Below this, the event is excluded |
+| `MIN_CREDIBILITY_SCORE` | Default 60. One reliable independent outlet is enough; official confirmation is a bonus, not a requirement |
 | `MIN_IMPORTANCE_SCORE` | Default 0 |
 | `MAX_PER_CATEGORY` | Diversity cap, default 3 |
+| `MAX_EVENTS_TO_SCORE` | How many clustered events get AI scores, default 40 |
 | `COPY_SIMILARITY_THRESHOLD` | Copy-chain detection, default 0.65 |
 
 If fewer than N events pass the threshold, the digest publishes fewer. It never invents a story to fill the list.

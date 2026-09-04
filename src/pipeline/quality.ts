@@ -2,7 +2,7 @@ import { jaccard, shingles } from "../normalize/text.ts";
 import { isOfficialItem, sourceDisplayName, type RawNewsWithSource } from "./grouping.ts";
 
 const EMPTY_STORY =
-  /офіційн(у|а|ої)?\s+заяв|зробив(а)?\s+заяв|зробила\s+заяв|виступив\s+з.{0,20}заяв|заяв[аи]\s+президента|кільк(а|ома)\s+заяв|додатков(і|их)\s+заяв|заяви\s+охоплюють|official statement|привітав|привітає|вітання|день державного|нові дані про надзвичай|надзвичайні ситуац|звіт про надзвичай|деталі заяви наразі|конкретні деталі не|деталі не розкрит|деталі не надан|підтверджен[аоі]\s+через офіційн|офіційні канали/i;
+  /офіційн(у|а|ої)?\s+заяв|зробив(а)?\s+заяв|зробила\s+заяв|виступив\s+з.{0,20}заяв|заяв[аи]\s+президента|кільк(а|ома)\s+заяв|додатков(і|их)\s+заяв|заяви\s+охоплюють|official statement|привітав|привітає|вітання|день державного|нові дані про надзвичай|надзвичайні ситуац|звіт про надзвичай|деталі заяви наразі|конкретні деталі не|деталі не розкрит|деталі не надан/i;
 
 const CEREMONY =
   /нагород|річниц|з нагоди|бойов(і|их|ого)\s+прапор|стрічк(и|у)\s+почесн|відновлення незалежн/i;
@@ -36,7 +36,13 @@ export function localizeSourceName(name: string): string {
 }
 
 export function hasIndependentMedia(items: RawNewsWithSource[]): boolean {
-  return items.some((item) => Boolean(item.source) && !item.source?.isOfficial);
+  return items.some((item) => {
+    if (item.source && !item.source.isOfficial) return true;
+    if (item.telegramSource && !item.telegramSource.officialSourceId && item.telegramSource.reliabilityScore >= 70) {
+      return true;
+    }
+    return false;
+  });
 }
 
 export function isCeremony(text: string): boolean {

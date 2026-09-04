@@ -2,8 +2,9 @@ name: Daily digest
 
 on:
   schedule:
-    # 16:00 UTC ~ 19:00 Europe/Kyiv in summer (18:00 Kyiv in winter).
-    - cron: "0 16 * * *"
+    # Off the hour: 16:17 UTC ~ 19:17 Europe/Kyiv in summer (18:17 Kyiv in winter).
+    # GitHub delays :00 UTC jobs by hours; an odd minute is usually closer to wall-clock.
+    - cron: "17 16 * * *"
   workflow_dispatch:
 
 jobs:
@@ -32,8 +33,9 @@ jobs:
           TIMEZONE: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}
           DIGEST_TIME: ${{ vars.DIGEST_TIME || '19:00' }}
           DIGEST_NEWS_COUNT: ${{ vars.DIGEST_NEWS_COUNT || '10' }}
-          MIN_CREDIBILITY_SCORE: ${{ vars.MIN_CREDIBILITY_SCORE || '70' }}
+          MIN_CREDIBILITY_SCORE: ${{ vars.MIN_CREDIBILITY_SCORE || '60' }}
           MIN_IMPORTANCE_SCORE: ${{ vars.MIN_IMPORTANCE_SCORE || '0' }}
           MAX_PER_CATEGORY: ${{ vars.MAX_PER_CATEGORY || '3' }}
+          MAX_EVENTS_TO_SCORE: ${{ vars.MAX_EVENTS_TO_SCORE || '40' }}
           LOG_LEVEL: info
           TZ: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatDigest, type WrittenItem } from "./digest.ts";
+import { formatDigest, defaultDigestTitle, type WrittenItem } from "./digest.ts";
 import { isOfficialNoise, isVagueCopy } from "./quality.ts";
 import type { RawNewsWithSource } from "./grouping.ts";
 
@@ -72,6 +72,21 @@ test("keeps a concrete incident with casualties", () => {
     isOfficialNoise(headline, summary, [media("Ukrinform"), official("DSNS")]),
     false,
   );
+});
+
+test("keeps a media-only policy story without official confirmation", () => {
+  const headline = "Німеччина виділяє додаткові 250 млн євро на підтримку енергетики України";
+  const summary =
+    "Німеччина оголосила про виділення додаткових 250 мільйонів євро до Фонду підтримки енергетики України. Кошти підуть на ремонт енергетичної інфраструктури перед зимовим сезоном.";
+  assert.equal(isOfficialNoise(headline, summary, [media("Radio Svoboda"), media("Hromadske Radio")]), false);
+  assert.equal(isVagueCopy(headline, summary), false);
+});
+
+test("digest title agrees with Ukrainian grammar", () => {
+  assert.equal(defaultDigestTitle(1), "1 ГОЛОВНА НОВИНА ЗА ДОБУ");
+  assert.equal(defaultDigestTitle(2), "2 ГОЛОВНІ НОВИНИ ЗА ДОБУ");
+  assert.equal(defaultDigestTitle(5), "5 ГОЛОВНИХ НОВИН ЗА ДОБУ");
+  assert.equal(defaultDigestTitle(10), "10 ГОЛОВНИХ НОВИН ЗА ДОБУ");
 });
 
 test("formats tenth mark and named links without raw urls", () => {

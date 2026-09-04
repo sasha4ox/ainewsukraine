@@ -25,7 +25,7 @@ const CIRCLED = [
 const LABEL_CREDIBILITY = "\u0414\u043e\u0441\u0442\u043e\u0432\u0456\u0440\u043d\u0456\u0441\u0442\u044c";
 const LABEL_IMPORTANCE = "\u0412\u0430\u0436\u043b\u0438\u0432\u0456\u0441\u0442\u044c";
 const LABEL_SOURCES = "\u0414\u0436\u0435\u0440\u0435\u043b\u0430";
-const TITLE_SUFFIX = "\u0413\u041e\u041b\u041e\u0412\u041d\u0418\u0425 \u041d\u041e\u0412\u0418\u041d \u0417\u0410 \u0414\u041e\u0411\u0423";
+const TITLE_DAY = "\u0417\u0410 \u0414\u041e\u0411\u0423";
 const FOOTER_UK =
   "\u041d\u043e\u0432\u0438\u043d\u0438 \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u043d\u043e \u0437\u0456\u0431\u0440\u0430\u043d\u0456 \u0442\u0430 \u043f\u0435\u0440\u0435\u0432\u0456\u0440\u0435\u043d\u0456 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0456 \u043a\u0456\u043b\u044c\u043a\u043e\u0445 \u0434\u0436\u0435\u0440\u0435\u043b.";
 
@@ -180,7 +180,16 @@ export async function writeDigestItems(events: EventForSelection[]): Promise<Wri
 }
 
 export function defaultDigestTitle(count: number): string {
-  return `${count} ${TITLE_SUFFIX}`;
+  const n = Math.max(0, count);
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (n === 1 || (mod10 === 1 && mod100 !== 11)) {
+    return `${n} \u0413\u041e\u041b\u041e\u0412\u041d\u0410 \u041d\u041e\u0412\u0418\u041d\u0410 ${TITLE_DAY}`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${n} \u0413\u041e\u041b\u041e\u0412\u041d\u0406 \u041d\u041e\u0412\u0418\u041d\u0418 ${TITLE_DAY}`;
+  }
+  return `${n} \u0413\u041e\u041b\u041e\u0412\u041d\u0418\u0425 \u041d\u041e\u0412\u0418\u041d ${TITLE_DAY}`;
 }
 
 export function defaultFooter(): string {

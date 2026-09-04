@@ -53,7 +53,43 @@ test("telegram-only unverified claim stays well below publish threshold", () => 
     ],
     { ...emptyIndependence, independentOrgs: ["Blyskavka"], telegramOnly: true, primaryUrl: "https://t.me/x/1" },
   );
-  assert.ok(score < 70);
+  assert.ok(score < 60);
+});
+
+test("one reliable independent outlet reaches the publish threshold without official confirmation", () => {
+  const score = computeCredibilityBase(
+    [item({ source: { name: "Ukrinform", organization: "Ukrinform", isOfficial: false, reliabilityScore: 85 } })],
+    {
+      independentOrgs: ["Ukrinform"],
+      officialConfirmation: false,
+      officialNames: [],
+      primaryUrl: "https://www.ukrinform.ua/1",
+      anonymous: false,
+      contradictions: [],
+      telegramOnly: false,
+    },
+  );
+  assert.ok(score >= 60);
+  assert.ok(score < 80);
+});
+
+test("two reliable independents score as mostly confirmed without DSNS", () => {
+  const score = computeCredibilityBase(
+    [
+      item({ id: "1", source: { name: "Radio Svoboda", organization: "Radio Svoboda", isOfficial: false, reliabilityScore: 90 } }),
+      item({ id: "2", source: { name: "Hromadske Radio", organization: "Hromadske Radio", isOfficial: false, reliabilityScore: 85 } }),
+    ],
+    {
+      independentOrgs: ["Radio Svoboda", "Hromadske Radio"],
+      officialConfirmation: false,
+      officialNames: [],
+      primaryUrl: "https://www.radiosvoboda.org/1",
+      anonymous: false,
+      contradictions: [],
+      telegramOnly: false,
+    },
+  );
+  assert.ok(score >= 70);
 });
 
 test("official plus two reliable independents scores high", () => {
