@@ -18,7 +18,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/normalize/text.test.ts src/normalize/relevance.test.ts src/pipeline/credibility.test.ts src/pipeline/selection.test.ts src/pipeline/cluster.test.ts src/pipeline/quality.test.ts src/publish/telegram-bot.test.ts"
+    "test": "tsx --test src/normalize/text.test.ts src/normalize/relevance.test.ts src/lib/dates.test.ts src/pipeline/credibility.test.ts src/pipeline/selection.test.ts src/pipeline/cluster.test.ts src/pipeline/quality.test.ts src/publish/telegram-bot.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",

@@ -27,7 +27,7 @@ const schema = z.object({
   TELEGRAM_BOT_TOKEN: optionalString,
   TELEGRAM_CHANNEL_ID: optionalString,
   TIMEZONE: z.string().default("Europe/Kyiv"),
-  DIGEST_TIME: z.string().default("19:00"),
+  DIGEST_TIME: z.string().default("20:00"),
   DIGEST_NEWS_COUNT: z.coerce.number().int().min(1).max(15).default(10),
   MIN_CREDIBILITY_SCORE: z.coerce.number().int().min(0).max(100).default(60),
   MIN_IMPORTANCE_SCORE: z.coerce.number().int().min(0).max(100).default(40),

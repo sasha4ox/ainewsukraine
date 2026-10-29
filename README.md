@@ -11,7 +11,7 @@ No permanent server is required. GitHub Actions run the jobs. PostgreSQL lives o
 ## Architecture
 
 ```
-collect-news.yml  03:13, 09:13, 15:13, 18:47 Kyiv
+collect-news.yml  03:13, 09:13, 15:13, 19:37 Kyiv
   GramJS MTProto + RSS adapters
     -> raw_news / telegram_messages
 
@@ -152,7 +152,7 @@ Prompts live in `src/ai/prompts/`. Responses are Structured Outputs and re-valid
 **Variables** (optional)
 
 - `TIMEZONE` default `Europe/Kyiv`
-- `DIGEST_TIME` default `19:00`
+- `DIGEST_TIME` default `20:00`
 - `DIGEST_NEWS_COUNT` default `10`
 - `MIN_CREDIBILITY_SCORE` default `60`
 - `MIN_IMPORTANCE_SCORE` default `0`
@@ -163,8 +163,8 @@ Prompts live in `src/ai/prompts/`. Responses are Structured Outputs and re-valid
 
 Workflows:
 
-- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:13, 09:13, 15:13, 18:47 Kyiv (last run ~30 minutes before the digest)
-- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 16:17 UTC (19:17 Kyiv in summer; odd minute to dodge GitHub's :00 queue)
+- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:13, 09:13, 15:13, 19:37 Kyiv (last run ~30 minutes before the digest)
+- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 20:07 Kyiv. Two UTC crons cover summer and winter; the off-hour run exits without posting.
 
 Both support **Run workflow** from the Actions tab.
 
@@ -203,7 +203,7 @@ All of these are environment variables / GitHub variables:
 | Variable | Meaning |
 | --- | --- |
 | `TIMEZONE` | Calendar timezone, default `Europe/Kyiv` |
-| `DIGEST_TIME` | Documented target hour; GitHub cron is UTC |
+| `DIGEST_TIME` | Local publish time, default `20:00`. The workflow posts at 20:07 so it misses GitHub's :00 queue |
 | `DIGEST_NEWS_COUNT` | Maximum stories, default 10 |
 | `MIN_CREDIBILITY_SCORE` | Default 60. One reliable independent outlet is enough; official confirmation is a bonus, not a requirement |
 | `MIN_IMPORTANCE_SCORE` | Default 0 |

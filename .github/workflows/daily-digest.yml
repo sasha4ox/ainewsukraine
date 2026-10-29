@@ -2,9 +2,11 @@ name: Daily digest
 
 on:
   schedule:
-    # Off the hour: 16:17 UTC ~ 19:17 Europe/Kyiv in summer (18:17 Kyiv in winter).
-    # GitHub delays :00 UTC jobs by hours; an odd minute is usually closer to wall-clock.
-    - cron: "17 16 * * *"
+    # 20:07 Europe/Kyiv. GitHub cron is UTC and delays jobs that start at :00,
+    # so the post goes out at :07. The script skips whichever slot is an hour off.
+    # Summer (UTC+3): 17:07 UTC. Winter (UTC+2): 18:07 UTC.
+    - cron: "7 17 * * *"
+    - cron: "7 18 * * *"
   workflow_dispatch:
 
 jobs:
@@ -31,7 +33,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           TIMEZONE: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}
-          DIGEST_TIME: ${{ vars.DIGEST_TIME || '19:00' }}
+          DIGEST_TIME: ${{ vars.DIGEST_TIME || '20:00' }}
           DIGEST_NEWS_COUNT: ${{ vars.DIGEST_NEWS_COUNT || '10' }}
           MIN_CREDIBILITY_SCORE: ${{ vars.MIN_CREDIBILITY_SCORE || '60' }}
           MIN_IMPORTANCE_SCORE: ${{ vars.MIN_IMPORTANCE_SCORE || '40' }}

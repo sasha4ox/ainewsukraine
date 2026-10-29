@@ -1,6 +1,6 @@
 import { loadEnv } from "../config/env.ts";
 import { prisma } from "../db.ts";
-import { digestWindow } from "../lib/dates.ts";
+import { digestWindow, isScheduledDigestDue } from "../lib/dates.ts";
 import { mapLimit } from "../lib/retry.ts";
 import { logger } from "../logger.ts";
 import { scoreCredibility } from "../pipeline/credibility.ts";
@@ -13,6 +13,13 @@ import { publishDigest } from "../publish/telegram-bot.ts";
 
 async function main() {
   const env = loadEnv();
+  if (!isScheduledDigestDue(env.TIMEZONE, env.DIGEST_TIME)) {
+    logger.info(
+      { timezone: env.TIMEZONE, digestTime: env.DIGEST_TIME },
+      "outside the digest window; skipping this UTC slot",
+    );
+    return;
+  }
   const { start, end, digestDate } = digestWindow(env.TIMEZONE);
   logger.info({ workflow: "daily-digest", start, end, digestDate, timezone: env.TIMEZONE }, "workflow start");
 

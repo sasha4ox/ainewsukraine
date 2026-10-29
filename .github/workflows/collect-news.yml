@@ -2,11 +2,13 @@ name: Collect news
 
 on:
   schedule:
-    # Kyiv summer (UTC+3): 03:13, 09:13, 15:13, 18:47. Last run ~30 minutes before the 19:17 digest.
+    # 03:13, 09:13, 15:13 Kyiv in summer. The last slot is 19:37 Kyiv, half an hour before the 20:07 digest.
+    # Summer (UTC+3): 16:37 UTC. Winter (UTC+2): 17:37 UTC.
     - cron: "13 0 * * *"
     - cron: "13 6 * * *"
     - cron: "13 12 * * *"
-    - cron: "47 15 * * *"
+    - cron: "37 16 * * *"
+    - cron: "37 17 * * *"
   workflow_dispatch:
 
 jobs:
