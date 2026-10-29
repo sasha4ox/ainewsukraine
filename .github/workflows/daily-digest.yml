@@ -2,29 +2,42 @@ name: Daily digest
 
 on:
   schedule:
-    # 20:07 Europe/Kyiv. GitHub cron is UTC and delays jobs that start at :00,
-    # so the post goes out at :07. The script skips whichever slot is an hour off.
-    # Summer (UTC+3): 17:07 UTC. Winter (UTC+2): 18:07 UTC.
-    - cron: "7 17 * * *"
-    - cron: "7 18 * * *"
+    # This repo's scheduled jobs start about 5 hours after the cron time.
+    # 11:07, 13:07 and 15:07 UTC therefore tend to wake a runner around 20:00 Kyiv.
+    # The first step waits out a short gap, or posts immediately if 20:00 has passed.
+    - cron: "7 11,13,15 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
 
 jobs:
   digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - id: gate
+        env:
+          TIMEZONE: ${{ vars.TIMEZONE || 'Europe/Kyiv' }}
+          DIGEST_TIME: ${{ vars.DIGEST_TIME || '20:00' }}
+        run: node .github/scripts/wait-for-digest.mjs
+      - if: steps.gate.outputs.proceed == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npx prisma migrate deploy
+      - if: steps.gate.outputs.proceed == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.proceed == 'true'
+        run: npx prisma generate
+      - if: steps.gate.outputs.proceed == 'true'
+        run: npx prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - run: npm run digest
+      - if: steps.gate.outputs.proceed == 'true'
+        run: npm run digest
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

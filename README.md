@@ -11,7 +11,7 @@ No permanent server is required. GitHub Actions run the jobs. PostgreSQL lives o
 ## Architecture
 
 ```
-collect-news.yml  03:13, 09:13, 15:13, 19:37 Kyiv
+collect-news.yml  several times a day, last useful run before 20:00 Kyiv
   GramJS MTProto + RSS adapters
     -> raw_news / telegram_messages
 
@@ -163,8 +163,8 @@ Prompts live in `src/ai/prompts/`. Responses are Structured Outputs and re-valid
 
 Workflows:
 
-- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — 03:13, 09:13, 15:13, 19:37 Kyiv (last run ~30 minutes before the digest)
-- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — daily at 20:07 Kyiv. Two UTC crons cover summer and winter; the off-hour run exits without posting.
+- [`.github/workflows/collect-news.yml`](.github/workflows/collect-news.yml) — several times a day. GitHub starts scheduled jobs hours late, so the 11:07 UTC slot is the one aimed at the hour before the post.
+- [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) — posted at 20:00 Kyiv. The scheduler wakes a runner early; the job waits until 20:00, and if GitHub was already late it posts as soon as the runner starts.
 
 Both support **Run workflow** from the Actions tab.
 
@@ -203,7 +203,7 @@ All of these are environment variables / GitHub variables:
 | Variable | Meaning |
 | --- | --- |
 | `TIMEZONE` | Calendar timezone, default `Europe/Kyiv` |
-| `DIGEST_TIME` | Local publish time, default `20:00`. The workflow posts at 20:07 so it misses GitHub's :00 queue |
+| `DIGEST_TIME` | Local publish time, default `20:00`. The job waits until this clock time in `TIMEZONE` |
 | `DIGEST_NEWS_COUNT` | Maximum stories, default 10 |
 | `MIN_CREDIBILITY_SCORE` | Default 60. One reliable independent outlet is enough; official confirmation is a bonus, not a requirement |
 | `MIN_IMPORTANCE_SCORE` | Default 0 |

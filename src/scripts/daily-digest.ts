@@ -16,7 +16,7 @@ async function main() {
   if (!isScheduledDigestDue(env.TIMEZONE, env.DIGEST_TIME)) {
     logger.info(
       { timezone: env.TIMEZONE, digestTime: env.DIGEST_TIME },
-      "outside the digest window; skipping this UTC slot",
+      "runner is early for the digest; skipping",
     );
     return;
   }
