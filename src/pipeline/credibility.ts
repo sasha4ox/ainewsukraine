@@ -41,6 +41,14 @@ export function computeCredibilityBase(
 
   score += Math.min(48, mediaOrgs.length * 16);
   score += Math.round((avgReliability - 50) * 0.35);
+  if (
+    mediaOrgs.length === 1 &&
+    avgReliability >= 80 &&
+    !independence.telegramOnly &&
+    !independence.anonymous
+  ) {
+    score += 8;
+  }
 
   if (independence.officialConfirmation) score += 12;
   if (independence.primaryUrl) score += 4;

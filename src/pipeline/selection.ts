@@ -2,6 +2,7 @@ import type { Event, EventCategory, Category } from "@prisma/client";
 import { loadEnv } from "../config/env.ts";
 import { logger } from "../logger.ts";
 import type { RawNewsWithSource } from "./grouping.ts";
+import { isUkraineRelevant } from "../normalize/relevance.ts";
 import { hasIndependentMedia, isOfficialNoise, noiseBucket, tooSimilar } from "./quality.ts";
 
 export type EventForSelection = Event & {
@@ -26,6 +27,7 @@ export function selectTopEvents(events: EventForSelection[]): EventForSelection[
     if (event.credibilityScore < env.MIN_CREDIBILITY_SCORE) return false;
     if (event.importanceScore < env.MIN_IMPORTANCE_SCORE) return false;
     if (event.verificationStatus === "contradicted") return false;
+    if (!isUkraineRelevant(`${event.title} ${event.normalizedSummary ?? ""}`)) return false;
     const items = eventItems(event);
     if (isOfficialNoise(event.title, event.normalizedSummary ?? "", items)) return false;
     return true;

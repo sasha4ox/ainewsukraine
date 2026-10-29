@@ -30,7 +30,7 @@ const schema = z.object({
   DIGEST_TIME: z.string().default("19:00"),
   DIGEST_NEWS_COUNT: z.coerce.number().int().min(1).max(15).default(10),
   MIN_CREDIBILITY_SCORE: z.coerce.number().int().min(0).max(100).default(60),
-  MIN_IMPORTANCE_SCORE: z.coerce.number().int().min(0).max(100).default(0),
+  MIN_IMPORTANCE_SCORE: z.coerce.number().int().min(0).max(100).default(40),
   MAX_PER_CATEGORY: z.coerce.number().int().min(1).max(10).default(3),
   MAX_EVENTS_TO_SCORE: z.coerce.number().int().min(5).max(80).default(40),
   MAX_AI_GROUPS: z.coerce.number().int().min(0).max(40).default(15),

@@ -34,7 +34,7 @@ jobs:
           DIGEST_TIME: ${{ vars.DIGEST_TIME || '19:00' }}
           DIGEST_NEWS_COUNT: ${{ vars.DIGEST_NEWS_COUNT || '10' }}
           MIN_CREDIBILITY_SCORE: ${{ vars.MIN_CREDIBILITY_SCORE || '60' }}
-          MIN_IMPORTANCE_SCORE: ${{ vars.MIN_IMPORTANCE_SCORE || '0' }}
+          MIN_IMPORTANCE_SCORE: ${{ vars.MIN_IMPORTANCE_SCORE || '40' }}
           MAX_PER_CATEGORY: ${{ vars.MAX_PER_CATEGORY || '3' }}
           MAX_EVENTS_TO_SCORE: ${{ vars.MAX_EVENTS_TO_SCORE || '40' }}
           LOG_LEVEL: info

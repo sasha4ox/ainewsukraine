@@ -4,6 +4,7 @@ import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { withRetry } from "../lib/retry.ts";
 import { bodyHash, contentHash } from "../normalize/hash.ts";
+import { isUkraineRelevant } from "../normalize/relevance.ts";
 import { firstSentence, sanitizeText, stripHtml, truncateText } from "../normalize/text.ts";
 
 const parser = new Parser({
@@ -38,7 +39,7 @@ async function fetchFeedXml(url: string): Promise<string> {
   return body;
 }
 
-export async function collectRss(): Promise<{ collected: number; duplicates: number; failed: number }> {
+export async function collectRss(): Promise<{ collected: number; duplicates: number; irrelevant: number; failed: number }> {
   loadEnv();
   const sources = await prisma.source.findMany({
     where: { enabled: true, type: "RSS" },
@@ -46,6 +47,7 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
 
   let collected = 0;
   let duplicates = 0;
+  let irrelevant = 0;
   let failed = 0;
 
   for (const source of sources) {
@@ -55,6 +57,7 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
       const items = feed.items ?? [];
       let sourceCollected = 0;
       let sourceDupes = 0;
+      let sourceIrrelevant = 0;
 
       for (const item of items) {
         const url = item.link?.trim() || item.guid?.trim();
@@ -62,6 +65,10 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
         if (!url || !title) continue;
 
         const body = sanitizeText(stripHtml(item.contentSnippet ?? item.content ?? item.summary ?? ""));
+        if (!isUkraineRelevant(`${title}\n${body}`)) {
+          sourceIrrelevant += 1;
+          continue;
+        }
         const publishedAt = item.isoDate
           ? new Date(item.isoDate)
           : item.pubDate
@@ -110,12 +117,14 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
 
       collected += sourceCollected;
       duplicates += sourceDupes;
+      irrelevant += sourceIrrelevant;
       logger.info(
         {
           source: source.name,
           items: items.length,
           collected: sourceCollected,
           duplicates: sourceDupes,
+          irrelevant: sourceIrrelevant,
         },
         "rss source collected",
       );
@@ -125,5 +134,5 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
     }
   }
 
-  return { collected, duplicates, failed };
+  return { collected, duplicates, irrelevant, failed };
 }
