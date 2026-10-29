@@ -4,7 +4,7 @@ import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 import { withRetry } from "../lib/retry.ts";
 import { bodyHash, contentHash } from "../normalize/hash.ts";
-import { firstSentence, stripHtml } from "../normalize/text.ts";
+import { firstSentence, sanitizeText, stripHtml, truncateText } from "../normalize/text.ts";
 
 const parser = new Parser({
   timeout: 20_000,
@@ -58,10 +58,10 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
 
       for (const item of items) {
         const url = item.link?.trim() || item.guid?.trim();
-        const title = stripHtml(item.title ?? "").trim();
+        const title = sanitizeText(stripHtml(item.title ?? "")).trim();
         if (!url || !title) continue;
 
-        const body = stripHtml(item.contentSnippet ?? item.content ?? item.summary ?? "");
+        const body = sanitizeText(stripHtml(item.contentSnippet ?? item.content ?? item.summary ?? ""));
         const publishedAt = item.isoDate
           ? new Date(item.isoDate)
           : item.pubDate
@@ -82,7 +82,7 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
             data: {
               title,
               summary: firstSentence(body || title),
-              content: body.slice(0, 8000) || null,
+              content: truncateText(body, 8000) || null,
               sourceId: source.id,
               sourceType: "rss",
               url,
@@ -98,6 +98,10 @@ export async function collectRss(): Promise<{ collected: number; duplicates: num
           const code = (error as { code?: string }).code;
           if (code === "P2002") {
             sourceDupes += 1;
+            continue;
+          }
+          if (code === "InvalidArg") {
+            logger.warn({ source: source.name, url }, "skipped rss item prisma refused to store");
             continue;
           }
           throw error;

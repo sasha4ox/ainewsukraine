@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jaccard, normalizeForCluster, shingles, stripHtml } from "./text.ts";
+import { firstSentence, jaccard, normalizeForCluster, sanitizeText, shingles, stripHtml, truncateText } from "./text.ts";
 import { bodyHash, contentHash } from "./hash.ts";
 
 test("stripHtml removes tags and entities", () => {
   assert.equal(stripHtml("<p>Hello&nbsp;<b>world</b></p>"), "Hello world");
+});
+
+test("sanitizeText drops lone surrogates and keeps emoji", () => {
+  const flag = "\uD83C\uDDFA\uD83C\uDDE6";
+  assert.equal(sanitizeText(`a${flag}b`), `a${flag}b`);
+  assert.equal(sanitizeText("a\uD83Cb"), "ab");
+  assert.equal(sanitizeText("a\u0000b"), "ab");
+});
+
+test("truncateText and firstSentence do not split an emoji", () => {
+  const flag = "\uD83C\uDDFA\uD83C\uDDE6";
+  assert.equal(truncateText(`${"а".repeat(10)}${flag}`, 11), "а".repeat(10));
+
+  const sentence = firstSentence(`${"а".repeat(30)}${flag} далі без крапки`, 32);
+  assert.equal(sentence, `${"а".repeat(30)}…`);
+  assert.equal(sentence.includes("\uD83C"), false);
 });
 
 test("normalizeForCluster is stable for near-duplicate Ukrainian phrasing", () => {

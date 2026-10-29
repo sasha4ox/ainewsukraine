@@ -55,16 +55,35 @@ export function jaccard(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
+const LONE_SURROGATE =
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/** Drop null bytes and unpaired UTF-16 surrogates. Prisma rejects those strings. */
+export function sanitizeText(input: string): string {
+  return input.replace(/\u0000/g, "").replace(LONE_SURROGATE, "");
+}
+
+/** Cut to a UTF-16 length without leaving half of an emoji. */
+export function truncateText(input: string, max: number): string {
+  const text = sanitizeText(input);
+  if (max <= 0) return "";
+  if (text.length <= max) return text;
+  let end = max;
+  const lead = text.charCodeAt(end - 1);
+  if (lead >= 0xd800 && lead <= 0xdbff) end -= 1;
+  return text.slice(0, end);
+}
+
 export function firstSentence(text: string, max = 220): string {
-  const clean = stripHtml(text);
+  const clean = sanitizeText(stripHtml(text));
   const match = clean.match(/(.+?[.!?…])(\s|$)/);
   const sentence = (match?.[1] ?? clean).trim();
   if (sentence.length <= max) return sentence;
-  return `${sentence.slice(0, max - 1).trimEnd()}…`;
+  return `${truncateText(sentence, max - 1).trimEnd()}…`;
 }
 
 export function clampText(text: string, max: number): string {
-  const clean = stripHtml(text);
+  const clean = sanitizeText(stripHtml(text));
   if (clean.length <= max) return clean;
-  return `${clean.slice(0, max - 1).trimEnd()}…`;
+  return `${truncateText(clean, max - 1).trimEnd()}…`;
 }

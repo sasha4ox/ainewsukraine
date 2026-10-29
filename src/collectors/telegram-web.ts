@@ -85,7 +85,7 @@ export async function collectTelegramWeb(): Promise<{ collected: number; duplica
           mediaMetadata: { adapter: "telegram-web" },
         });
         if (result === "created") created += 1;
-        else dupes += 1;
+        else if (result === "duplicate") dupes += 1;
         if (message.messageId > maxId) maxId = message.messageId;
       }
 

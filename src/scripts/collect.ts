@@ -5,6 +5,21 @@ import { loadEnv } from "../config/env.ts";
 import { prisma } from "../db.ts";
 import { logger } from "../logger.ts";
 
+// Prisma can reject a second promise with the same InvalidArg after the
+// awaited create() has already thrown. That rejection happens after the
+// collector finishes and would fail the GitHub job.
+process.on("unhandledRejection", (reason) => {
+  const code =
+    typeof reason === "object" && reason && "code" in reason ? String((reason as { code: unknown }).code) : "";
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (code === "InvalidArg" || message.includes("unexpected end of hex escape")) {
+    logger.error({ err: reason }, "ignored prisma string rejection");
+    return;
+  }
+  logger.error({ err: reason }, "unhandled rejection");
+  process.exitCode = 1;
+});
+
 async function main() {
   const env = loadEnv();
   logger.info({ workflow: "collect-news" }, "workflow start");

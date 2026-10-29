@@ -93,7 +93,7 @@ export async function collectTelegram(): Promise<{
             mediaMetadata,
           });
           if (result === "created") created += 1;
-          else dupes += 1;
+          else if (result === "duplicate") dupes += 1;
           if (message.id > maxId) maxId = message.id;
         }
 
